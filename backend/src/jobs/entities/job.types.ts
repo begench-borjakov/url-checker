@@ -11,3 +11,7 @@ export type CreateJobParams = {
 };
 
 export type SaveJobParams = Job;
+
+export type CreateJobData = {
+  urls: string[];
+};
