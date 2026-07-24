@@ -5,7 +5,10 @@ import {
   getJobById,
   getJobs,
 } from '../api/jobsApi'
+import type { JobStatus } from '../types/job'
 import type { JobsStore } from './jobsStore.types'
+
+const TERMINAL_STATUSES: JobStatus[] = ['completed', 'cancelled', 'failed']
 
 export const useJobsStore = create<JobsStore>((set, get) => ({
   jobs: [],
@@ -41,7 +44,6 @@ export const useJobsStore = create<JobsStore>((set, get) => ({
         createLoading: false,
       })
 
-      await get().fetchActiveJob()
       await get().fetchJobs()
     } catch (error) {
       set({ error: getErrorMessage(error), createLoading: false })
@@ -70,6 +72,17 @@ export const useJobsStore = create<JobsStore>((set, get) => ({
       const activeJob = await getJobById(requestedJobId, signal)
 
       if (get().activeJobId !== requestedJobId) {
+        return
+      }
+
+      const currentJob = get().activeJob
+
+      if (
+        currentJob?.id === requestedJobId &&
+        TERMINAL_STATUSES.includes(currentJob.status) &&
+        !TERMINAL_STATUSES.includes(activeJob.status)
+      ) {
+        set({ activeJobLoading: false })
         return
       }
 
