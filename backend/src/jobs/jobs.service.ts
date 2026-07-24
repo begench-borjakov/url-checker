@@ -7,6 +7,7 @@ import {
   mapJobToDetailsRto,
   mapJobToSummaryRto,
 } from './mappers/job.mapper';
+import { JobsProcessor } from './jobs.processor';
 import { JobsRepository } from './jobs.repository';
 import { CreateJobRto } from './rto/create-job.rto';
 import { JobDetailsRto } from './rto/job-details.rto';
@@ -15,12 +16,27 @@ import type { CreateJobData } from './entities/job.types';
 
 @Injectable()
 export class JobsService {
-  constructor(private readonly jobsRepository: JobsRepository) {}
+  constructor(
+    private readonly jobsRepository: JobsRepository,
+    private readonly jobsProcessor: JobsProcessor,
+  ) {}
 
   create(data: CreateJobData): CreateJobRto {
     const job = this.jobsRepository.create({
       id: randomUUID(),
       items: data.urls.map((url) => this.createPendingItem(url)),
+    });
+
+    void this.jobsProcessor.process(job.id).catch(() => {
+      const currentJob = this.jobsRepository.findById(job.id);
+
+      if (!currentJob || currentJob.status === JobStatus.Cancelled) {
+        return;
+      }
+
+      currentJob.status = JobStatus.Failed;
+      currentJob.finishedAt = new Date();
+      this.jobsRepository.save(currentJob);
     });
 
     return mapJobToCreateJobRto(job);
