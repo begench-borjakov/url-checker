@@ -13,7 +13,7 @@ export type JobsState = {
 
 export type JobsActions = {
   fetchJobs: () => Promise<void>
-  createJob: (urls: string[]) => Promise<void>
+  createJob: (urls: string[]) => Promise<boolean>
   selectJob: (id: string) => void
   fetchActiveJob: (signal?: AbortSignal) => Promise<void>
   cancelActiveJob: () => Promise<void>

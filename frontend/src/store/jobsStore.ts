@@ -5,7 +5,7 @@ import {
   getJobById,
   getJobs,
 } from '../api/jobsApi'
-import type { JobStatus } from '../types/job'
+import type { JobDetails, JobStatus, JobSummary } from '../types/job'
 import type { JobsStore } from './jobsStore.types'
 
 const TERMINAL_STATUSES: JobStatus[] = ['completed', 'cancelled', 'failed']
@@ -25,8 +25,9 @@ export const useJobsStore = create<JobsStore>((set, get) => ({
 
     try {
       const jobs = await getJobs()
+      const activeJobId = get().activeJobId ?? jobs[0]?.id ?? null
 
-      set({ jobs, jobsLoading: false })
+      set({ jobs, activeJobId, jobsLoading: false })
     } catch (error) {
       set({ error: getErrorMessage(error), jobsLoading: false })
     }
@@ -45,8 +46,12 @@ export const useJobsStore = create<JobsStore>((set, get) => ({
       })
 
       await get().fetchJobs()
+
+      return true
     } catch (error) {
       set({ error: getErrorMessage(error), createLoading: false })
+
+      return false
     }
   },
 
@@ -86,7 +91,11 @@ export const useJobsStore = create<JobsStore>((set, get) => ({
         return
       }
 
-      set({ activeJob, activeJobLoading: false })
+      set({
+        activeJob,
+        activeJobLoading: false,
+        jobs: syncJobSummary(get().jobs, activeJob),
+      })
     } catch (error) {
       if (get().activeJobId !== requestedJobId) {
         return
@@ -114,7 +123,10 @@ export const useJobsStore = create<JobsStore>((set, get) => ({
       const activeJob = await cancelJob(activeJobId)
 
       if (get().activeJobId === activeJob.id) {
-        set({ activeJob })
+        set({
+          activeJob,
+          jobs: syncJobSummary(get().jobs, activeJob),
+        })
       }
 
       await get().fetchJobs()
@@ -139,4 +151,28 @@ function getErrorMessage(error: unknown): string {
 
 function isAbortError(error: unknown): boolean {
   return error instanceof Error && error.name === 'AbortError'
+}
+
+function syncJobSummary(jobs: JobSummary[], jobDetails: JobDetails): JobSummary[] {
+  const jobSummary = mapJobDetailsToSummary(jobDetails)
+  const hasJob = jobs.some((job) => job.id === jobSummary.id)
+
+  if (!hasJob) {
+    return [jobSummary, ...jobs]
+  }
+
+  return jobs.map((job) => (job.id === jobSummary.id ? jobSummary : job))
+}
+
+function mapJobDetailsToSummary(jobDetails: JobDetails): JobSummary {
+  return {
+    id: jobDetails.id,
+    createdAt: jobDetails.createdAt,
+    status: jobDetails.status,
+    total: jobDetails.total,
+    processed: jobDetails.processed,
+    successful: jobDetails.successful,
+    failed: jobDetails.failed,
+    cancelled: jobDetails.cancelled,
+  }
 }
